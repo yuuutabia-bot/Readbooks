@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reader</title>
+<title>Yuuutabia Reader</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
 
@@ -28,7 +28,6 @@ header {
   transition: top 0.3s;
 }
 
-/* Progress Bar */
 #progress-bar {
   height: 4px;
   background: #6366f1;
@@ -36,7 +35,6 @@ header {
   transition: width 0.3s;
 }
 
-/* Controls */
 .controls {
   margin-top: 8px;
 }
@@ -54,19 +52,17 @@ button {
   margin-top: 8px;
 }
 
-/* Container */
 #pdf-container {
-  margin-top: 150px;
+  margin-top: 160px;
   text-align: center;
-  position: relative;
   min-height: 80vh;
+  position: relative;
 }
 
 canvas {
   max-width: 100%;
 }
 
-/* Slide Animation */
 .slide-in {
   animation: slideIn 0.3s ease;
 }
@@ -82,18 +78,23 @@ canvas {
   }
 }
 
-#page-num {
-  display: block;
-  margin-top: 6px;
+#loader {
+  margin-top: 200px;
+  font-size: 18px;
 }
 
+#error {
+  color: red;
+  margin-top: 200px;
+  font-size: 18px;
+}
 </style>
 </head>
 
 <body>
 
 <header id="header">
-  📖 PDF Reader
+  📖 Yuuutabia Reader
   <div id="progress-bar"></div>
 
   <div class="controls">
@@ -105,12 +106,19 @@ canvas {
   </div>
 </header>
 
-<div id="pdf-container"></div>
+<div id="pdf-container">
+  <div id="loader">Loading PDF...</div>
+</div>
 
 <script>
 
 let urlParams = new URLSearchParams(window.location.search);
 let book = urlParams.get("book");
+
+if(!book){
+  document.getElementById("pdf-container").innerHTML =
+    "<div id='error'>PDF tidak ditemukan.</div>";
+}
 
 let pdfDoc = null;
 let currentPage = 1;
@@ -125,14 +133,20 @@ pdfjsLib.getDocument(book).promise.then(function(pdf){
 
   document.getElementById("page-slider").max = pdf.numPages;
   renderPage(currentPage);
+
+}).catch(function(error){
+  document.getElementById("pdf-container").innerHTML =
+    "<div id='error'>Gagal memuat PDF.<br>Cek path folder books/ atau nama file.</div>";
 });
 
-/* ================= RENDER PAGE ================= */
+/* ================= RENDER ================= */
 
 function renderPage(num){
+
   document.getElementById("pdf-container").innerHTML = "";
 
   pdfDoc.getPage(num).then(function(page){
+
     let viewport = page.getViewport({scale: 1.3});
     let canvas = document.createElement("canvas");
     let ctx = canvas.getContext("2d");
@@ -177,7 +191,27 @@ document.getElementById("page-slider").addEventListener("input", function(){
   renderPage(currentPage);
 });
 
-/* ================= AUTO SAVE ================= */
+/* ================= SWIPE MOBILE ================= */
+
+let touchStartX = 0;
+
+document.addEventListener("touchstart", function(e){
+  touchStartX = e.changedTouches[0].screenX;
+});
+
+document.addEventListener("touchend", function(e){
+  let touchEndX = e.changedTouches[0].screenX;
+
+  if(touchEndX < touchStartX - 50){
+    nextPage();
+  }
+
+  if(touchEndX > touchStartX + 50){
+    prevPage();
+  }
+});
+
+/* ================= SAVE ================= */
 
 function savePage(){
   localStorage.setItem(book + "-lastPage", currentPage);
@@ -197,7 +231,7 @@ window.addEventListener("scroll", function(){
   let currentScroll = window.pageYOffset;
 
   if(currentScroll > lastScroll){
-    document.getElementById("header").style.top = "-160px";
+    document.getElementById("header").style.top = "-170px";
   } else {
     document.getElementById("header").style.top = "0";
   }
