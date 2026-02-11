@@ -1,53 +1,184 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Book Reader</title>
+<meta charset="UTF-8">
+<title>Book Reader</title>
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: white;
-    }
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #111;
+  color: white;
+  text-align: center;
+}
 
-    header {
-      background: #202124;
-      padding: 15px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+header {
+  background: #202124;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-    button {
-      padding: 8px 15px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      background: white;
-    }
+button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0 5px;
+}
 
-    iframe {
-      width: 100%;
-      height: 92vh;
-      border: none;
-    }
-  </style>
+#controls {
+  margin: 10px 0;
+}
+
+canvas {
+  background: white;
+  margin-bottom: 20px;
+}
+
+/* Loading Spinner */
+#loader {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 6px solid #333;
+  border-top: 6px solid #4f46e5;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  display: none;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Ad Box */
+#ad-container {
+  margin: 15px auto;
+  background: #222;
+  padding: 10px;
+  width: 90%;
+  max-width: 728px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+</style>
 </head>
+
 <body>
 
 <header>
   <button onclick="goBack()">⬅ Back</button>
-  <div>Madilog - Tan Malaka</div>
+  <div id="pageInfo">Loading...</div>
 </header>
 
-<iframe src="books/tan-malaka-madilog.pdf"></iframe>
+<div id="controls">
+  <button onclick="prevPage()">Prev</button>
+  <button onclick="nextPage()">Next</button>
+  <button onclick="zoomIn()">Zoom +</button>
+  <button onclick="zoomOut()">Zoom -</button>
+</div>
+
+<!-- Iklan -->
+<div id="ad-container">
+  🔥 Iklan Anda di sini — Pasang Google AdSense / Banner
+</div>
+
+<div id="loader"></div>
+<canvas id="pdf-render"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 
 <script>
-  function goBack() {
-    window.location.href = "index.html";
-  }
+const urlParams = new URLSearchParams(window.location.search);
+const book = urlParams.get("book");
+const url = "books/" + book;
+
+let pdfDoc = null,
+    pageNum = 1,
+    scale = 1.2;
+
+const canvas = document.querySelector("#pdf-render");
+const ctx = canvas.getContext("2d");
+const loader = document.getElementById("loader");
+
+function showLoader() {
+  loader.style.display = "block";
+}
+
+function hideLoader() {
+  loader.style.display = "none";
+}
+
+/* Load saved page */
+const savedPage = localStorage.getItem("lastPage_" + book);
+if (savedPage) {
+  pageNum = parseInt(savedPage);
+}
+
+pdfjsLib.getDocument(url).promise.then(pdfDoc_ => {
+  pdfDoc = pdfDoc_;
+  renderPage(pageNum);
+});
+
+function renderPage(num) {
+  showLoader();
+
+  pdfDoc.getPage(num).then(page => {
+    const viewport = page.getViewport({ scale });
+
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    const renderCtx = {
+      canvasContext: ctx,
+      viewport
+    };
+
+    page.render(renderCtx).promise.then(() => {
+      hideLoader();
+
+      document.getElementById("pageInfo").textContent =
+        `Page ${pageNum} of ${pdfDoc.numPages}`;
+
+      /* Save page */
+      localStorage.setItem("lastPage_" + book, pageNum);
+    });
+  });
+}
+
+function prevPage() {
+  if (pageNum <= 1) return;
+  pageNum--;
+  renderPage(pageNum);
+}
+
+function nextPage() {
+  if (pageNum >= pdfDoc.numPages) return;
+  pageNum++;
+  renderPage(pageNum);
+}
+
+function zoomIn() {
+  scale += 0.2;
+  renderPage(pageNum);
+}
+
+function zoomOut() {
+  if (scale <= 0.6) return;
+  scale -= 0.2;
+  renderPage(pageNum);
+}
+
+function goBack() {
+  window.location.href = "index.html";
+}
 </script>
 
 </body>
