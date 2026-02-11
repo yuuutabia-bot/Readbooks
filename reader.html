@@ -16,29 +16,22 @@ body {
 header {
   background: #202124;
   padding: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+#pdf-container {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
 }
 
-button {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin: 0 5px;
-}
-
-#controls {
-  margin: 10px 0;
-}
-
 canvas {
+  margin: 15px 0;
   background: white;
-  margin-bottom: 20px;
 }
 
-/* Loading Spinner */
 #loader {
   position: fixed;
   top: 50%;
@@ -58,15 +51,22 @@ canvas {
   100% { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
-/* Ad Box */
-#ad-container {
-  margin: 15px auto;
+/* Popup Ad */
+#ad-popup {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
   background: #222;
-  padding: 10px;
-  width: 90%;
-  max-width: 728px;
-  border-radius: 8px;
-  font-size: 14px;
+  padding: 20px;
+  border-radius: 10px;
+  display: none;
+  z-index: 999;
+  max-width: 300px;
+}
+
+#ad-popup button {
+  margin-top: 10px;
+  padding: 5px 10px;
 }
 </style>
 </head>
@@ -74,24 +74,19 @@ canvas {
 <body>
 
 <header>
-  <button onclick="goBack()">⬅ Back</button>
-  <div id="pageInfo">Loading...</div>
+  📖 Scroll Mode Reader
 </header>
 
-<div id="controls">
-  <button onclick="prevPage()">Prev</button>
-  <button onclick="nextPage()">Next</button>
-  <button onclick="zoomIn()">Zoom +</button>
-  <button onclick="zoomOut()">Zoom -</button>
-</div>
-
-<!-- Iklan -->
-<div id="ad-container">
-  🔥 Iklan Anda di sini — Pasang Google AdSense / Banner
-</div>
-
 <div id="loader"></div>
-<canvas id="pdf-render"></canvas>
+<div id="pdf-container"></div>
+
+<!-- Popup Ad -->
+<div id="ad-popup">
+  🔥 Iklan Spesial! <br><br>
+  Pasang Google AdSense di sini 💰
+  <br>
+  <button onclick="closeAd()">Tutup</button>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 
@@ -100,84 +95,89 @@ const urlParams = new URLSearchParams(window.location.search);
 const book = urlParams.get("book");
 const url = "books/" + book;
 
-let pdfDoc = null,
-    pageNum = 1,
-    scale = 1.2;
+let pdfDoc = null;
+let scale = 1.1;
+let pagesViewed = 0;
 
-const canvas = document.querySelector("#pdf-render");
-const ctx = canvas.getContext("2d");
+const container = document.getElementById("pdf-container");
 const loader = document.getElementById("loader");
+const popup = document.getElementById("ad-popup");
 
-function showLoader() {
-  loader.style.display = "block";
-}
+function showLoader() { loader.style.display = "block"; }
+function hideLoader() { loader.style.display = "none"; }
 
-function hideLoader() {
-  loader.style.display = "none";
-}
-
-/* Load saved page */
-const savedPage = localStorage.getItem("lastPage_" + book);
-if (savedPage) {
-  pageNum = parseInt(savedPage);
-}
+showLoader();
 
 pdfjsLib.getDocument(url).promise.then(pdfDoc_ => {
   pdfDoc = pdfDoc_;
-  renderPage(pageNum);
+  renderAllPages();
 });
 
-function renderPage(num) {
-  showLoader();
+function renderAllPages() {
+  for (let num = 1; num <= pdfDoc.numPages; num++) {
+    pdfDoc.getPage(num).then(page => {
 
-  pdfDoc.getPage(num).then(page => {
-    const viewport = page.getViewport({ scale });
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
 
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
 
-    const renderCtx = {
-      canvasContext: ctx,
-      viewport
-    };
+      container.appendChild(canvas);
 
-    page.render(renderCtx).promise.then(() => {
-      hideLoader();
-
-      document.getElementById("pageInfo").textContent =
-        `Page ${pageNum} of ${pdfDoc.numPages}`;
-
-      /* Save page */
-      localStorage.setItem("lastPage_" + book, pageNum);
+      page.render({
+        canvasContext: ctx,
+        viewport: viewport
+      }).promise.then(() => {
+        hideLoader();
+      });
     });
+  }
+}
+
+/* Track Scroll for Ads + Save Page */
+window.addEventListener("scroll", () => {
+
+  const canvases = document.querySelectorAll("canvas");
+
+  canvases.forEach((canvas, index) => {
+    const rect = canvas.getBoundingClientRect();
+
+    if (rect.top >= 0 && rect.top < window.innerHeight / 2) {
+
+      const currentPage = index + 1;
+
+      localStorage.setItem("lastPage_" + book, currentPage);
+
+      if (currentPage % 5 === 0 && pagesViewed !== currentPage) {
+        pagesViewed = currentPage;
+        showAd();
+      }
+    }
   });
+
+});
+
+/* Restore Scroll Position */
+window.onload = function() {
+  const savedPage = localStorage.getItem("lastPage_" + book);
+  if (savedPage) {
+    setTimeout(() => {
+      const targetCanvas = document.querySelectorAll("canvas")[savedPage - 1];
+      if (targetCanvas) {
+        targetCanvas.scrollIntoView();
+      }
+    }, 1000);
+  }
+};
+
+function showAd() {
+  popup.style.display = "block";
 }
 
-function prevPage() {
-  if (pageNum <= 1) return;
-  pageNum--;
-  renderPage(pageNum);
-}
-
-function nextPage() {
-  if (pageNum >= pdfDoc.numPages) return;
-  pageNum++;
-  renderPage(pageNum);
-}
-
-function zoomIn() {
-  scale += 0.2;
-  renderPage(pageNum);
-}
-
-function zoomOut() {
-  if (scale <= 0.6) return;
-  scale -= 0.2;
-  renderPage(pageNum);
-}
-
-function goBack() {
-  window.location.href = "index.html";
+function closeAd() {
+  popup.style.display = "none";
 }
 </script>
 
