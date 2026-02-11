@@ -22,25 +22,25 @@ header {
   width: 100%;
   background: #111827;
   color: white;
-  padding: 12px;
+  padding: 10px;
   text-align: center;
   z-index: 1000;
   transition: top 0.3s;
 }
 
 #progress-bar {
-  height: 4px;
+  height: 3px;
   background: #6366f1;
   width: 0%;
   transition: width 0.3s;
 }
 
 .controls {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 button {
-  padding: 6px 12px;
+  padding: 6px 10px;
   margin: 3px;
   border: none;
   border-radius: 6px;
@@ -49,18 +49,18 @@ button {
 
 #page-slider {
   width: 80%;
-  margin-top: 8px;
+  margin-top: 5px;
 }
 
+/* CONTAINER */
 #pdf-container {
-  margin-top: 160px;
+  margin-top: 150px;
   text-align: center;
-  min-height: 80vh;
-  position: relative;
 }
 
 canvas {
   max-width: 100%;
+  margin-bottom: 15px;
 }
 
 .slide-in {
@@ -68,25 +68,17 @@ canvas {
 }
 
 @keyframes slideIn {
-  from {
-    transform: translateX(40px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
-#loader {
-  margin-top: 200px;
-  font-size: 18px;
+/* SCROLL MODE CLEAN */
+.scroll-mode header {
+  display: none;
 }
 
-#error {
-  color: red;
-  margin-top: 200px;
-  font-size: 18px;
+.scroll-mode #pdf-container {
+  margin-top: 20px;
 }
 </style>
 </head>
@@ -94,34 +86,33 @@ canvas {
 <body>
 
 <header id="header">
-  📖 Yuuutabia Reader
+  📖 Reader
   <div id="progress-bar"></div>
 
   <div class="controls">
-    <button onclick="prevPage()">⬅</button>
-    <button onclick="nextPage()">➡</button>
+    <button onclick="setMode('page')">Page Mode</button>
+    <button onclick="setMode('scroll')">Scroll Mode</button>
     <br>
-    <input type="range" id="page-slider" min="1" value="1">
-    <span id="page-num"></span>
+    <div id="page-controls">
+      <button onclick="prevPage()">⬅</button>
+      <button onclick="nextPage()">➡</button>
+      <br>
+      <input type="range" id="page-slider" min="1" value="1">
+      <span id="page-num"></span>
+    </div>
   </div>
 </header>
 
-<div id="pdf-container">
-  <div id="loader">Loading PDF...</div>
-</div>
+<div id="pdf-container"></div>
 
 <script>
 
 let urlParams = new URLSearchParams(window.location.search);
 let book = urlParams.get("book");
 
-if(!book){
-  document.getElementById("pdf-container").innerHTML =
-    "<div id='error'>PDF tidak ditemukan.</div>";
-}
-
 let pdfDoc = null;
 let currentPage = 1;
+let mode = localStorage.getItem("readerMode") || "page";
 let savedPage = localStorage.getItem(book + "-lastPage");
 
 pdfjsLib.getDocument(book).promise.then(function(pdf){
@@ -132,21 +123,34 @@ pdfjsLib.getDocument(book).promise.then(function(pdf){
   }
 
   document.getElementById("page-slider").max = pdf.numPages;
-  renderPage(currentPage);
-
-}).catch(function(error){
-  document.getElementById("pdf-container").innerHTML =
-    "<div id='error'>Gagal memuat PDF.<br>Cek path folder books/ atau nama file.</div>";
+  applyMode();
 });
 
-/* ================= RENDER ================= */
+/* ================= MODE ================= */
+
+function setMode(selected){
+  localStorage.setItem("readerMode", selected);
+  location.reload();
+}
+
+function applyMode(){
+  if(mode === "scroll"){
+    document.body.classList.add("scroll-mode");
+    document.getElementById("page-controls").style.display = "none";
+    renderScroll();
+  } else {
+    document.body.classList.remove("scroll-mode");
+    document.getElementById("page-controls").style.display = "block";
+    renderPage(currentPage);
+  }
+}
+
+/* ================= PAGE MODE ================= */
 
 function renderPage(num){
-
   document.getElementById("pdf-container").innerHTML = "";
 
   pdfDoc.getPage(num).then(function(page){
-
     let viewport = page.getViewport({scale: 1.3});
     let canvas = document.createElement("canvas");
     let ctx = canvas.getContext("2d");
@@ -172,8 +176,6 @@ function renderPage(num){
   });
 }
 
-/* ================= NAVIGATION ================= */
-
 function nextPage(){
   if(currentPage >= pdfDoc.numPages) return;
   currentPage++;
@@ -191,25 +193,29 @@ document.getElementById("page-slider").addEventListener("input", function(){
   renderPage(currentPage);
 });
 
-/* ================= SWIPE MOBILE ================= */
+/* ================= SCROLL MODE ================= */
 
-let touchStartX = 0;
+function renderScroll(){
+  document.getElementById("pdf-container").innerHTML = "";
 
-document.addEventListener("touchstart", function(e){
-  touchStartX = e.changedTouches[0].screenX;
-});
+  for(let num = 1; num <= pdfDoc.numPages; num++){
+    pdfDoc.getPage(num).then(function(page){
+      let viewport = page.getViewport({scale: 1.2});
+      let canvas = document.createElement("canvas");
+      let ctx = canvas.getContext("2d");
 
-document.addEventListener("touchend", function(e){
-  let touchEndX = e.changedTouches[0].screenX;
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
 
-  if(touchEndX < touchStartX - 50){
-    nextPage();
+      document.getElementById("pdf-container").appendChild(canvas);
+
+      page.render({
+        canvasContext: ctx,
+        viewport: viewport
+      });
+    });
   }
-
-  if(touchEndX > touchStartX + 50){
-    prevPage();
-  }
-});
+}
 
 /* ================= SAVE ================= */
 
@@ -224,10 +230,30 @@ function updateProgress(){
   document.getElementById("progress-bar").style.width = percent + "%";
 }
 
-/* ================= AUTO HIDE HEADER ================= */
+/* ================= SWIPE (PAGE MODE ONLY) ================= */
+
+let touchStartX = 0;
+
+document.addEventListener("touchstart", function(e){
+  if(mode !== "page") return;
+  touchStartX = e.changedTouches[0].screenX;
+});
+
+document.addEventListener("touchend", function(e){
+  if(mode !== "page") return;
+
+  let touchEndX = e.changedTouches[0].screenX;
+
+  if(touchEndX < touchStartX - 50) nextPage();
+  if(touchEndX > touchStartX + 50) prevPage();
+});
+
+/* ================= AUTO HIDE HEADER (PAGE MODE) ================= */
 
 let lastScroll = 0;
 window.addEventListener("scroll", function(){
+  if(mode !== "page") return;
+
   let currentScroll = window.pageYOffset;
 
   if(currentScroll > lastScroll){
